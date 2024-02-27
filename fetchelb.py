@@ -55,4 +55,10 @@ for region in aws_regions:
         else:
             print("Scheme: Not found")  # Print a message if 'Scheme' key is not present
         
+        # Print the creation time if available
+        if 'CreatedTime' in lb:
+            print("Creation Time:", lb['CreatedTime'])
+        else:
+            print("Creation Time: Not found")  # Print a message if 'CreatedTime' key is not present
+        
         print("---------------------------------------------")

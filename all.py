@@ -23,8 +23,15 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
     # Fetch and write EC2 instances information
     for region in aws_regions:
         print(f"Fetching EC2 instances in {region}...")
-        ec2_response = ec2_client.describe_instances()
-        reservations = ec2_response['Reservations']
+        
+        # Initialize the Boto3 client for the EC2 service in the current region
+        ec2_client = boto3.client('ec2', region_name=region)
+        
+        # List all EC2 instances in the current region
+        response = ec2_client.describe_instances()
+        
+        # Extract EC2 instance information from the response
+        reservations = response['Reservations']
         for reservation in reservations:
             instances = reservation['Instances']
             for instance in instances:
@@ -38,12 +45,20 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                     'Other Information': f"Instance Type: {instance['InstanceType']}, State: {instance['State']['Name']}, Private IP: {instance.get('PrivateIpAddress', 'N/A')}, Public IP: {instance.get('PublicIpAddress', 'N/A')}"
                 }
                 writer.writerow(row)
-    
+
     # Fetch and write Lambda functions information
     for region in aws_regions:
         print(f"Fetching Lambda functions in {region}...")
-        lambda_response = lambda_client.list_functions()
-        functions = lambda_response['Functions']
+
+        # Initialize the Boto3 client for the AWS Lambda service in the current region
+        lambda_client = boto3.client('lambda', region_name=region)
+    
+        # List all Lambda functions in the current region
+        response = lambda_client.list_functions()
+    
+        # Extract Lambda function information from the response
+        functions = response['Functions']
+        
         for function in functions:
             last_modified = function.get('LastModified', 'N/A')
             if isinstance(last_modified, str):
@@ -60,17 +75,27 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
     
     # Fetch and write ELB information
     for region in aws_regions:
-        print(f"Fetching load balancers in {region}...")
-        elb_response = elb_client.describe_load_balancers()
-        load_balancers = elb_response['LoadBalancers']
-        for lb in load_balancers:
-            creation_time = lb['CreatedTime'].strftime('%Y-%m-%d %H:%M:%S')
+        print(f"Fetching ELBs in {region}...")
+
+        # Initialize the Boto3 client for the ELB service in the current region
+        elb_client = boto3.client('elbv2', region_name=region)
+    
+        # List all ELBs in the current region
+        response = elb_client.describe_load_balancers()
+    
+        # Extract ELB information from the response
+        elbs = response['LoadBalancers']
+        
+        for elb in elbs:
+            creation_time = elb['CreatedTime'].strftime('%Y-%m-%d %H:%M:%S')
+            dns_name = elb.get('DNSName', 'N/A')
+            scheme = elb.get('Scheme', 'N/A')  # Check if 'Scheme' key exists
             row = {
                 'Resource Type': 'ELB',
                 'Region': region,
-                'Resource Name': lb['LoadBalancerName'],
-                'Resource ARN': lb['LoadBalancerArn'],
+                'Resource Name': elb['LoadBalancerName'],
+                'Resource ARN': elb['LoadBalancerArn'],
                 'Creation/Last Modified Time': creation_time,
-                'Other Information': f"DNS Name: {lb.get('DNSName', 'N/A')}, Type: {lb['Type']}, VPC ID: {lb['VpcId']}, Availability Zones: {lb['AvailabilityZones']}, Security Groups: {lb.get('SecurityGroups', 'N/A')}, Subnets: {lb.get('Subnets', 'N/A')}, State: {lb.get('State', 'N/A')}, Scheme: {lb.get('Scheme', 'N/A')}"
+                'Other Information': f"DNS Name: {dns_name}, Scheme: {scheme}, Type: {elb['Type']}"
             }
             writer.writerow(row)

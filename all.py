@@ -1,11 +1,12 @@
 import boto3
 import csv
 
-# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, and S3 services
+# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, and RDS services
 ec2_client = boto3.client('ec2')
 lambda_client = boto3.client('lambda')
 elb_client = boto3.client('elbv2')
 s3_client = boto3.client('s3')
+rds_client = boto3.client('rds')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -146,3 +147,28 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
             'Other Information': ''
         }
         writer.writerow(row)
+
+    # Fetch and write RDS information
+    for region in aws_regions:
+        print(f"Fetching RDS instances in {region}...")
+
+        # Initialize the Boto3 client for the RDS service in the current region
+        rds_client = boto3.client('rds', region_name=region)
+    
+        # List all RDS instances in the current region
+        response = rds_client.describe_db_instances()
+    
+        # Extract RDS instance information from the response
+        db_instances = response['DBInstances']
+        
+        for db_instance in db_instances:
+            creation_time = db_instance['InstanceCreateTime'].strftime('%Y-%m-%d %H:%M:%S')
+            row = {
+                'Resource Type': 'RDS Instance',
+                'Region': region,
+                'Resource Name': db_instance['DBInstanceIdentifier'],
+                'Resource ARN': db_instance['DBInstanceArn'],
+                'Creation/Last Modified Time': creation_time,
+                'Other Information': f"Engine: {db_instance['Engine']}, Status: {db_instance['DBInstanceStatus']}"
+            }
+            writer.writerow(row)

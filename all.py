@@ -1,12 +1,13 @@
 import boto3
 import csv
 
-# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, and RDS services
+# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, RDS, and EFS services
 ec2_client = boto3.client('ec2')
 lambda_client = boto3.client('lambda')
 elb_client = boto3.client('elbv2')
 s3_client = boto3.client('s3')
 rds_client = boto3.client('rds')
+efs_client = boto3.client('efs')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -116,8 +117,9 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
         vpcs = response['Vpcs']
         
         for vpc in vpcs:
-            creation_time = vpc.get('CreateTime', 'N/A')
-            creation_time_str = creation_time.strftime('%Y-%m-%d %H:%M:%S') if creation_time != 'N/A' else 'N/A'
+            creation_time_str = "N/A"
+            if 'CreateTime' in vpc:
+                creation_time_str = vpc['CreateTime'].strftime('%Y-%m-%d %H:%M:%S')
             row = {
                 'Resource Type': 'VPC',
                 'Region': region,
@@ -127,8 +129,8 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Other Information': ''
             }
             writer.writerow(row)
-    
-    # Fetch and write S3 bucket information
+
+   # Fetch and write S3 bucket information
     print("Fetching S3 buckets...")
     response = s3_client.list_buckets()
 
@@ -170,5 +172,30 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Resource ARN': db_instance['DBInstanceArn'],
                 'Creation/Last Modified Time': creation_time,
                 'Other Information': f"Engine: {db_instance['Engine']}, Status: {db_instance['DBInstanceStatus']}"
+            }
+            writer.writerow(row)
+    
+    # Fetch and write EFS information
+    for region in aws_regions:
+        print(f"Fetching EFS file systems in {region}...")
+
+        # Initialize the Boto3 client for the EFS service in the current region
+        efs_client = boto3.client('efs', region_name=region)
+
+        # List all EFS file systems in the current region
+        response = efs_client.describe_file_systems()
+
+        # Extract EFS file system information from the response
+        file_systems = response['FileSystems']
+
+        for file_system in file_systems:
+            creation_time = file_system['CreationTime'].strftime('%Y-%m-%d %H:%M:%S')
+            row = {
+                'Resource Type': 'EFS File System',
+                'Region': region,
+                'Resource Name': file_system['Name'],
+                'Resource ARN': file_system['FileSystemArn'],
+                'Creation/Last Modified Time': creation_time,
+                'Other Information': f"Performance Mode: {file_system['PerformanceMode']}, Throughput Mode: {file_system['ThroughputMode']}, LifeCycle State: {file_system['LifeCycleState']}"
             }
             writer.writerow(row)

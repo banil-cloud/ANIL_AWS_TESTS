@@ -1,10 +1,11 @@
 import boto3
 import csv
 
-# Initialize the Boto3 clients for EC2, Lambda, ELB, and VPC services
+# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, and S3 services
 ec2_client = boto3.client('ec2')
 lambda_client = boto3.client('lambda')
 elb_client = boto3.client('elbv2')
+s3_client = boto3.client('s3')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -106,13 +107,13 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
 
         # Initialize the Boto3 client for the EC2 service in the current region
         ec2_client = boto3.client('ec2', region_name=region)
-
+    
         # List all VPCs in the current region
         response = ec2_client.describe_vpcs()
-
+    
         # Extract VPC information from the response
         vpcs = response['Vpcs']
-
+        
         for vpc in vpcs:
             creation_time = vpc.get('CreateTime', 'N/A')
             creation_time_str = creation_time.strftime('%Y-%m-%d %H:%M:%S') if creation_time != 'N/A' else 'N/A'
@@ -122,6 +123,26 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Resource Name': vpc['VpcId'],
                 'Resource ARN': '',
                 'Creation/Last Modified Time': creation_time_str,
-                'Other Information': f"CIDR Block: {vpc['CidrBlock']}, Default: {vpc['IsDefault']}"
+                'Other Information': ''
             }
             writer.writerow(row)
+    
+    # Fetch and write S3 bucket information
+    print("Fetching S3 buckets...")
+    response = s3_client.list_buckets()
+
+    # Extract S3 bucket information from the response
+    buckets = response['Buckets']
+
+    for bucket in buckets:
+        creation_time = bucket.get('CreationDate', 'N/A')
+        creation_time_str = creation_time.strftime('%Y-%m-%d %H:%M:%S') if creation_time != 'N/A' else 'N/A'
+        row = {
+            'Resource Type': 'S3 Bucket',
+            'Region': 'Global',
+            'Resource Name': bucket['Name'],
+            'Resource ARN': '',
+            'Creation/Last Modified Time': creation_time_str,
+            'Other Information': ''
+        }
+        writer.writerow(row)

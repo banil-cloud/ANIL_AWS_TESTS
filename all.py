@@ -9,8 +9,6 @@ elb_client = boto3.client('elbv2')
 s3_client = boto3.client('s3')
 rds_client = boto3.client('rds')
 efs_client = boto3.client('efs')
-sqs_client = boto3.client('sqs')
-ecr_client = boto3.client('ecr')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -259,6 +257,28 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Resource Name': repository_name,
                 'Resource ARN': repository_arn,
                 'Creation/Last Modified Time': creation_time_str,
+                'Other Information': ''
+            }
+            writer.writerow(row)
+
+    # Fetch and write ECS information
+    for region in aws_regions:
+        print(f"Fetching ECS clusters in {region}...")
+        # Initialize the Boto3 client for the ECS service in the current region
+        ecs_client = boto3.client('ecs', region_name=region)
+        # List all ECS clusters in the current region
+        response = ecs_client.list_clusters()
+        # Extract ECS cluster information from the response
+        clusters = response['clusterArns']
+
+        for cluster in clusters:
+            cluster_name = cluster.split('/')[-1]  # Extract cluster name from ARN
+            row = {
+                'Resource Type': 'ECS Cluster',
+                'Region': region,
+                'Resource Name': cluster_name,
+                'Resource ARN': cluster,
+                'Creation/Last Modified Time': '',  # ECS clusters do not have a creation time
                 'Other Information': ''
             }
             writer.writerow(row)

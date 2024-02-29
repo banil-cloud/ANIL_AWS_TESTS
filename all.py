@@ -1,5 +1,6 @@
 import boto3
 import csv
+from datetime import datetime
 
 # Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, RDS, and EFS services
 ec2_client = boto3.client('ec2')
@@ -8,6 +9,8 @@ elb_client = boto3.client('elbv2')
 s3_client = boto3.client('s3')
 rds_client = boto3.client('rds')
 efs_client = boto3.client('efs')
+sqs_client = boto3.client('sqs')
+ecr_client = boto3.client('ecr')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -197,5 +200,65 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Resource ARN': file_system['FileSystemArn'],
                 'Creation/Last Modified Time': creation_time,
                 'Other Information': f"Performance Mode: {file_system['PerformanceMode']}, Throughput Mode: {file_system['ThroughputMode']}, LifeCycle State: {file_system['LifeCycleState']}"
+            }
+            writer.writerow(row)
+
+    # Fetch and write SQS information
+    for region in aws_regions:
+        print(f"Fetching SQS queues in {region}...")
+        # Initialize the Boto3 client for the SQS service in the current region
+        sqs_client = boto3.client('sqs', region_name=region)
+        # List all SQS queues in the current region
+        response = sqs_client.list_queues()
+        # Extract SQS queue information from the response
+        queues = response.get('QueueUrls', [])
+        for queue_url in queues:
+            queue_name = queue_url.split('/')[-1]
+            # Fetch additional details for the SQS queue
+            queue_attributes = sqs_client.get_queue_attributes(
+                QueueUrl=queue_url,
+                AttributeNames=['All']
+            )['Attributes']
+            arn = queue_attributes.get('QueueArn', '')
+            created_timestamp = int(queue_attributes.get('CreatedTimestamp', 0)) / 1000  # Convert milliseconds to seconds
+            creation_time = datetime.utcfromtimestamp(created_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            last_updated_timestamp = int(queue_attributes.get('LastModifiedTimestamp', 0)) / 1000  # Convert milliseconds to seconds
+            last_updated = datetime.utcfromtimestamp(last_updated_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            message_retention_period = queue_attributes.get('MessageRetentionPeriod', '')
+            visibility_timeout = queue_attributes.get('VisibilityTimeout', '')
+            max_message_size = queue_attributes.get('MaximumMessageSize', '')
+            delay_seconds = queue_attributes.get('DelaySeconds', '')
+            redrive_policy = queue_attributes.get('RedrivePolicy', '')
+            row = {
+                'Resource Type': 'SQS Queue',
+                'Region': region,
+                'Resource Name': queue_name,
+                'Resource ARN': arn,
+                'Creation/Last Modified Time': creation_time,
+                'Other Information': f"Last Updated: {last_updated}, Message Retention Period: {message_retention_period} seconds, Visibility Timeout: {visibility_timeout} seconds, Maximum Message Size: {max_message_size} bytes, Delay Seconds: {delay_seconds} seconds, Redrive Policy: {redrive_policy}"
+            }
+            writer.writerow(row)
+
+    # Fetch and write ECR repositories information
+    for region in aws_regions:
+        print(f"Fetching ECR repositories in {region}...")
+        # Initialize the Boto3 client for the ECR service in the current region
+        ecr_client = boto3.client('ecr', region_name=region)
+        # List all ECR repositories in the current region
+        response = ecr_client.describe_repositories()
+        # Extract ECR repository information from the response
+        repositories = response.get('repositories', [])
+        for repository in repositories:
+            repository_name = repository.get('repositoryName', '')
+            repository_arn = repository.get('repositoryArn', '')
+            creation_time = repository.get('createdAt', '')
+            creation_time_str = datetime.strftime(creation_time, '%Y-%m-%d %H:%M:%S')
+            row = {
+                'Resource Type': 'ECR Repository',
+                'Region': region,
+                'Resource Name': repository_name,
+                'Resource ARN': repository_arn,
+                'Creation/Last Modified Time': creation_time_str,
+                'Other Information': ''
             }
             writer.writerow(row)

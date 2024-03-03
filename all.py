@@ -12,6 +12,7 @@ efs_client = boto3.client('efs')
 ecs_client = boto3.client('ecs')
 cloudtrail_client = boto3.client('cloudtrail')
 route53_client = boto3.client('route53')
+waf_client = boto3.client('wafv2')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -371,3 +372,21 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Other Information': f"Description: {rule.get('Description', 'N/A')}, Source: {rule['Source']['Owner']}, Rule Identifier: {rule['Source']['SourceIdentifier']}"
             }
             writer.writerow(row)
+
+    # Fetch and write WAF WebACLs information
+    print(f"Fetching WAF WebACLs...")
+    # List all WAF WebACLs
+    response = waf_client.list_web_acls(Scope='REGIONAL')
+    # Extract WAF WebACLs information from the response
+    webacls = response.get('WebACLs', [])
+
+    for webacl in webacls:
+        row = {
+            'Resource Type': 'WAF WebACL',
+            'Region': 'Global',
+            'Resource Name': webacl['Name'],
+            'Resource ARN': webacl['ARN'],
+            'Creation/Last Modified Time': '',
+            'Other Information': f"" 
+        }
+        writer.writerow(row) 

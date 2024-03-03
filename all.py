@@ -326,3 +326,48 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Other Information': f"Alarm Description: {alarm.get('AlarmDescription', 'N/A')}, Alarm State: {alarm['StateValue']}, Alarm Actions Enabled: {alarm['ActionsEnabled']}, Metric Name: {alarm['MetricName']}, Namespace: {alarm['Namespace']}, Comparison Operator: {alarm['ComparisonOperator']}, Threshold: {alarm['Threshold']}, Evaluation Periods: {alarm['EvaluationPeriods']}, Period: {alarm['Period']}, Dimensions: {alarm.get('Dimensions', 'N/A')}, OK Actions: {alarm.get('OKActions', 'N/A')}, Alarm Actions: {alarm.get('AlarmActions', 'N/A')}, Insufficient Data Actions: {alarm.get('InsufficientDataActions', 'N/A')}"
             }
             writer.writerow(row)
+    # Fetch and write DocumentDB clusters information
+    for region in aws_regions:
+        print(f"Fetching DocumentDB clusters in {region}...")
+        # Initialize the Boto3 client for the DocumentDB service in the current region
+        docdb_client = boto3.client('docdb', region_name=region)
+        # List all DocumentDB clusters in the current region
+        response = docdb_client.describe_db_clusters()
+        # Extract DocumentDB cluster information from the response
+        clusters = response['DBClusters']
+
+        for cluster in clusters:
+            creation_time = cluster['ClusterCreateTime'].strftime('%Y-%m-%d %H:%M:%S')
+            row = {
+                'Resource Type': 'DocumentDB Cluster',
+                'Region': region,
+                'Resource Name': cluster['DBClusterIdentifier'],
+                'Resource ARN': cluster['DBClusterArn'],
+                'Creation/Last Modified Time': '',
+                'Other Information': f"Engine: {cluster['Engine']}, Status: {cluster['Status']}, Endpoint: {cluster['Endpoint']}"
+            }
+            writer.writerow(row)
+
+    # Fetch and write AWS Config rules information
+    for region in aws_regions:
+        print(f"Fetching AWS Config rules in {region}...")
+
+        # Initialize the Boto3 client for the AWS Config service in the current region
+        config_client = boto3.client('config', region_name=region)
+
+        # List all AWS Config rules in the current region
+        response = config_client.describe_config_rules()
+
+        # Extract AWS Config rules information from the response
+        rules = response['ConfigRules']
+
+        for rule in rules:
+            row = {
+                'Resource Type': 'AWS Config Rule',
+                'Region': region,
+                'Resource Name': rule['ConfigRuleName'],
+                'Resource ARN': rule['ConfigRuleArn'],
+                'Creation/Last Modified Time': '',
+                'Other Information': f"Description: {rule.get('Description', 'N/A')}, Source: {rule['Source']['Owner']}, Rule Identifier: {rule['Source']['SourceIdentifier']}"
+            }
+            writer.writerow(row)

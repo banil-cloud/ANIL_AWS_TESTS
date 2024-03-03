@@ -2,13 +2,16 @@ import boto3
 import csv
 from datetime import datetime
 
-# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, RDS, and EFS services
+# Initialize the Boto3 clients for EC2, Lambda, ELB, VPC, S3, RDS, EFS, ECS, CloudTrail, and Route 53 services
 ec2_client = boto3.client('ec2')
 lambda_client = boto3.client('lambda')
 elb_client = boto3.client('elbv2')
 s3_client = boto3.client('s3')
 rds_client = boto3.client('rds')
 efs_client = boto3.client('efs')
+ecs_client = boto3.client('ecs')
+cloudtrail_client = boto3.client('cloudtrail')
+route53_client = boto3.client('route53')
 
 # Fetch all AWS regions
 response = ec2_client.describe_regions()
@@ -280,5 +283,46 @@ with open('aws_resources_info.csv', 'w', newline='') as csvfile:
                 'Resource ARN': cluster,
                 'Creation/Last Modified Time': '',  # ECS clusters do not have a creation time
                 'Other Information': ''
+            }
+            writer.writerow(row)
+
+    # Fetch and write Route 53 information
+    print("Fetching Route 53 hosted zones...")
+    response = route53_client.list_hosted_zones()
+
+    # Extract Route 53 hosted zone information from the response
+    hosted_zones = response['HostedZones']
+
+    for hosted_zone in hosted_zones:
+        row = {
+            'Resource Type': 'Route 53 Hosted Zone',
+            'Region': 'Global',  # Route 53 is a global service
+            'Resource Name': hosted_zone['Name'],
+            'Resource ARN': hosted_zone['Id'],
+            'Creation/Last Modified Time': '',  # No creation date available
+            'Other Information': f"Zone ID: {hosted_zone['Id']}, Record Set Count: {hosted_zone['ResourceRecordSetCount']}"
+        }
+        writer.writerow(row)
+
+    # Fetch and write CloudWatch alarms information
+    for region in aws_regions:
+        print(f"Fetching CloudWatch alarms in {region}...")
+        
+        # Initialize the Boto3 client for the CloudWatch service in the current region
+        cloudwatch_client = boto3.client('cloudwatch', region_name=region)
+        
+        # List all CloudWatch alarms in the current region
+        response = cloudwatch_client.describe_alarms()
+        
+        # Extract CloudWatch alarm information from the response
+        alarms = response['MetricAlarms']
+        for alarm in alarms:
+            row = {
+                'Resource Type': 'CloudWatch Alarm',
+                'Region': region,
+                'Resource Name': alarm['AlarmName'],
+                'Resource ARN': '',
+                'Creation/Last Modified Time': alarm.get('StateUpdatedTimestamp', ''),
+                'Other Information': f"Alarm Description: {alarm.get('AlarmDescription', 'N/A')}, Alarm State: {alarm['StateValue']}, Alarm Actions Enabled: {alarm['ActionsEnabled']}, Metric Name: {alarm['MetricName']}, Namespace: {alarm['Namespace']}, Comparison Operator: {alarm['ComparisonOperator']}, Threshold: {alarm['Threshold']}, Evaluation Periods: {alarm['EvaluationPeriods']}, Period: {alarm['Period']}, Dimensions: {alarm.get('Dimensions', 'N/A')}, OK Actions: {alarm.get('OKActions', 'N/A')}, Alarm Actions: {alarm.get('AlarmActions', 'N/A')}, Insufficient Data Actions: {alarm.get('InsufficientDataActions', 'N/A')}"
             }
             writer.writerow(row)

@@ -11,6 +11,9 @@ def fetch_ec2_instances():
     ec2_regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
     ec2_instances = []
 
+    # Get current time
+    current_time = datetime.utcnow()
+
     # Iterate through each region
     for region in ec2_regions:
         # Initialize EC2 client for the current region
@@ -22,12 +25,19 @@ def fetch_ec2_instances():
         # Extract instance information
         for reservation in ec2_response['Reservations']:
             for instance in reservation['Instances']:
-                ec2_instances.append({
-                    'Region': region,
-                    'InstanceId': instance['InstanceId'],
-                    'InstanceType': instance['InstanceType'],
-                    'State': instance['State']['Name']
-                })
+                launch_time = instance['LaunchTime']
+                launch_datetime = datetime.strptime(launch_time.strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+                # Calculate the difference in days
+                time_difference = current_time - launch_datetime
+                if time_difference.days >= 2:
+                    ec2_instances.append({
+                        'Region': region,
+                        'InstanceId': instance['InstanceId'],
+                        'InstanceType': instance['InstanceType'],
+                        'State': instance['State']['Name'],
+                        'LaunchTime': launch_datetime
+                    })
+                    print(f"New instance detected in {region} region: {instance['InstanceId']}")
 
     return ec2_instances
 
@@ -45,16 +55,16 @@ def lambda_handler(event, context):
     # Print EC2 instances with regions
     print("EC2 Instances:")
     for instance in ec2_instances:
-        print(f"Region: {instance['Region']}, Instance ID: {instance['InstanceId']}, Instance Type: {instance['InstanceType']}, State: {instance['State']}")
+        print(f"Region: {instance['Region']}, Instance ID: {instance['InstanceId']}, Instance Type: {instance['InstanceType']}, State: {instance['State']}, Launch Time: {instance['LaunchTime']}")
 
     # Prepare CSV data
     csv_data = StringIO()
     csv_writer = csv.writer(csv_data)
 
     # Write EC2 instance information
-    csv_writer.writerow(['Region', 'Instance ID', 'Instance Type', 'State'])
+    csv_writer.writerow(['Region', 'Instance ID', 'Instance Type', 'State', 'Launch Time'])
     for instance in ec2_instances:
-        csv_writer.writerow([instance['Region'], instance['InstanceId'], instance['InstanceType'], instance['State']])
+        csv_writer.writerow([instance['Region'], instance['InstanceId'], instance['InstanceType'], instance['State'], instance['LaunchTime']])
 
     # Reset the StringIO buffer position to the beginning
     csv_data.seek(0)

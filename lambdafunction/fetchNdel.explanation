@@ -1,0 +1,135 @@
+Detailed explanation of the full code, step by step:
+
+python
+
+import boto3
+import csv
+from io import StringIO
+from datetime import datetime
+
+    Importing Necessary Modules:
+        boto3: A Python library that provides an interface to interact with AWS services.
+        csv: A module to handle CSV files.
+        StringIO: A module to work with string buffers.
+        datetime: A module to work with dates and times.
+
+python
+
+def fetch_ec2_instances():
+    # Initialize Boto3 client for EC2
+    ec2_client = boto3.client('ec2')
+
+    # Fetching EC2 instance information
+    ec2_regions = [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
+    ec2_instances = []
+    current_time = datetime.utcnow()
+
+    Function to Fetch EC2 Instances Older Than 2 Days:
+        fetch_ec2_instances(): This function is defined to fetch information about EC2 instances older than 2 days.
+        It initializes a Boto3 client for EC2.
+        Retrieves a list of AWS regions where EC2 instances are deployed.
+        Initializes an empty list ec2_instances to store instance information.
+        Gets the current time in UTC.
+
+python
+
+    for region in ec2_regions:
+        # Initialize EC2 client for the current region
+        ec2 = boto3.client('ec2', region_name=region)
+
+        # Fetch instances for the region
+        ec2_response = ec2.describe_instances()
+        
+        # Extract instance information
+        for reservation in ec2_response['Reservations']:
+            for instance in reservation['Instances']:
+                launch_time = instance['LaunchTime']
+                launch_datetime = datetime.strptime(launch_time.strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+                # Calculate the difference in days
+                time_difference = current_time - launch_datetime
+                if time_difference.days >= 2:
+                    ec2_instances.append({
+                        'Region': region,
+                        'InstanceId': instance['InstanceId'],
+                        'InstanceType': instance['InstanceType'],
+                        'State': instance['State']['Name'],
+                        'LaunchTime': launch_datetime
+                    })
+                    print(f"New instance detected in {region} region: {instance['InstanceId']}")
+                    ec2.terminate_instances(InstanceIds=[instance['InstanceId']])
+                    print(f"Instance {instance['InstanceId']} terminated")
+
+    Looping Through Regions and Instances:
+        The script iterates through each AWS region.
+        For each region, it initializes an EC2 client.
+        Fetches instances for the region using describe_instances() method.
+        Extracts information about each instance including its launch time.
+        Calculates the difference in days between the launch time and current time.
+        If the instance is older than 2 days, it adds its information to ec2_instances list, prints a message about the new instance, and terminates the instance.
+
+python
+
+    return ec2_instances
+
+    Returning Fetched EC2 Instances:
+        The function returns the list ec2_instances containing information about EC2 instances older than 2 days.
+
+python
+
+def save_to_s3(bucket_name, file_key, csv_data):
+    # Initialize Boto3 client for S3
+    s3_client = boto3.client('s3')
+
+    # Upload the CSV data to S3
+    s3_client.put_object(Body=csv_data.getvalue(), Bucket=bucket_name, Key=file_key)
+
+    Function to Save EC2 Instance Information to S3:
+        save_to_s3(): This function saves the EC2 instance information to an S3 bucket as a CSV file.
+        It initializes a Boto3 client for S3.
+        Uploads the CSV data to the specified S3 bucket and key.
+
+python
+
+def lambda_handler(event, context):
+    # Fetch EC2 instances data
+    ec2_instances = fetch_ec2_instances()
+
+    # Print EC2 instances with regions
+    print("EC2 Instances:")
+    for instance in ec2_instances:
+        print(f"Region: {instance['Region']}, Instance ID: {instance['InstanceId']}, Instance Type: {instance['InstanceType']}, State: {instance['State']}, Launch Time: {instance['LaunchTime']}")
+
+    # Prepare CSV data
+    csv_data = StringIO()
+    csv_writer = csv.writer(csv_data)
+
+    # Write EC2 instance information
+    csv_writer.writerow(['Region', 'Instance ID', 'Instance Type', 'State', 'Launch Time'])
+    for instance in ec2_instances:
+        csv_writer.writerow([instance['Region'], instance['InstanceId'], instance['InstanceType'], instance['State'], instance['LaunchTime']])
+
+    # Reset the StringIO buffer position to the beginning
+    csv_data.seek(0)
+
+    # Get current date and time
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Define S3 bucket and file key
+    bucket_name = 'script07'
+    file_key = f'ec2_instances_{current_datetime}.csv'
+
+    # Save CSV data to S3
+    save_to_s3(bucket_name, file_key, csv_data)
+
+    return {
+        'statusCode': 200,
+        'body': 'EC2 instances CSV file created and saved to S3'
+    }
+
+    Lambda Handler Function:
+        lambda_handler(): This function serves as the entry point for the Lambda function.
+        It first calls fetch_ec2_instances() to fetch EC2 instance information older than 2 days.
+        Prints information about the fetched instances.
+        Prepares CSV data containing information about the EC2 instances.
+        Saves the CSV data to an S3 bucket.
+        Returns a response indicating the successful completion of the Lambda function.

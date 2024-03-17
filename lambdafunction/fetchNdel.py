@@ -38,6 +38,9 @@ def fetch_ec2_instances():
                         'LaunchTime': launch_datetime
                     })
                     print(f"New instance detected in {region} region: {instance['InstanceId']}")
+                    # Terminate the instance
+                    ec2.terminate_instances(InstanceIds=[instance['InstanceId']])
+                    print(f"Instance {instance['InstanceId']} terminated")
 
     return ec2_instances
 
